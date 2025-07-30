@@ -1,36 +1,46 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# Binarios compilados
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
 
-# dependencies
-/node_modules
-/.pnp
-.pnp.js
-.yarn/install-state.gz
-
-# testing
-/coverage
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
-
-# misc
+# Archivos del sistema
 .DS_Store
-*.pem
+Thumbs.db
 
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# Archivos de logs y temporales
+*.log
+*.tmp
 
-# local env files
-.env*.local
+# Archivos de dependencias
+vendor/
 
-# vercel
-.vercel
+# Archivos de entorno
+.env
 
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# Archivos de configuración de herramientas de desarrollo
+.idea/
+.vscode/
+*.swp
+
+# Archivos de cobertura de pruebas
+*.coverprofile
+
+# Módulos descargados automáticamente por Go
+go.sum
+
+# Archivos de caché de compilación
+*.a
+
+# Firebase service account JSON si llegas a usarlo localmente
+firebase-service-account.json
+
+# Archivos del sistema operativo
+*.bak
+*~
+
+# Archivos generados automáticamente
+dist/
