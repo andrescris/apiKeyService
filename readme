@@ -1,0 +1,102 @@
+# 🔑 Microservicio de API Keys
+
+Este es un microservicio construido en Go (usando Gin) para generar y validar API Keys avanzadas. Utiliza Firebase Firestore para el almacenamiento y está diseñado para ser seguro, modular y fácil de mantener.
+
+## Características
+
+- **Generación de Claves Avanzadas:** Crea claves con metadatos (nombre, descripción), permisos, entornos y reglas de uso.
+- **Validación por Middleware:** Protege rutas validando el estado de la clave, el secreto y los permisos (scopes) requeridos.
+- **Seguridad:** Almacena los secretos usando hashes bcrypt y nunca los expone después de la creación.
+- **Configuración por Entorno:** Carga las credenciales de Firebase de forma segura desde un archivo `.env`.
+
+## Documentación de la API
+
+**URL BASE:** `http://localhost:8080/api/v1`
+
+---
+
+### === Creación de API Keys (Público) ===
+
+**`POST /keys`** - Crea un nuevo par de API Key y Secret con todas sus propiedades.
+
+- **Body (JSON):**
+  ```json
+  {
+    "name": "Mi Clave para App Móvil",
+    "description": "Clave con permisos de lectura para la app de iOS.",
+    "userId": "oSXtytzfgmMuhYMQKRwhEm5tFIs2",
+    "environment": "production",
+    "permissions": ["read:documents", "read:admin"]
+  }
+  ```
+- **Respuesta Exitosa (201 Created):** Devuelve el objeto completo de la clave y el `api_secret`, que solo se muestra esta vez.
+  ```json
+  {
+    "success": true,
+    "message": "API Key created successfully",
+    "warning": "⚠️ Save the API Secret securely. It will not be shown again!",
+    "data": {
+      "id": "a1b2c3d4-...",
+      "name": "Mi Clave para App Móvil",
+      "project_id": "andres_cristancho",
+      "api_key": "ak_...",
+      "user_id": "oSXtytzfgmMuhYMQKRwhEm5tFIs2",
+      "...": "..."
+    },
+    "api_secret": "as_..."
+  }
+  ```
+
+---
+
+### === Rutas Protegidas ===
+
+Estos endpoints requieren los encabezados `X-API-Key` y `X-API-Secret`, y que la clave tenga los **permisos adecuados**.
+
+**`GET /admin/dashboard`** - Endpoint de ejemplo que requiere el permiso `"read:admin"`.
+
+- **Encabezados (Headers):**
+  - `X-API-Key`: `ak_...`
+  - `X-API-Secret`: `as_...`
+- **Respuesta Exitosa (200 OK):**
+  ```json
+  {
+    "message": "Welcome to the protected admin area!",
+    "userId": "oSXtytzfgmMuhYMQKRwhEm5tFIs2"
+  }
+  ```
+- **Respuesta de Error (403 Forbidden):** Si la clave es válida pero no tiene el permiso `"read:admin"`.
+  ```json
+  {
+    "error": "Insufficient permissions"
+  }
+  ```
+
+---
+
+### === Utilidades ===
+
+**`GET /docs`** - Muestra una documentación simple de la API en texto plano.
+
+## Cómo Ejecutarlo
+
+1.  **Configuración:**
+    Crea un archivo `.env` en la raíz del proyecto con tus credenciales de Firebase:
+
+    ```env
+    FIREBASE_SERVICE_ACCOUNT="{...tu JSON de credenciales aquí...}"
+    project_id="tu-project-id"
+    ```
+
+2.  **Instalar dependencias:**
+
+    ```bash
+    go mod tidy
+    ```
+
+3.  **Ejecutar el servidor:**
+    ```bash
+    go run main.go
+    ```
+
+El servidor se iniciará en `http://localhost:8081`.
