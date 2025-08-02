@@ -65,6 +65,7 @@ func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 		}()
 
 		c.Set("userId", keyDoc.Data["user_id"])
+		c.Set("permissions", permissions)
 		c.Next()
 	}
 }
