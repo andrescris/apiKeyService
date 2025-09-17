@@ -76,19 +76,23 @@ func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 
 		// 3. Extraer subdomain del hostname
 		var subdomain string
-		host := c.Request.Host
-		parts := strings.Split(host, ".")
-		// Intenta obtenerlo del Host primero (para producción)
-		if len(parts) >= 3 {
-			subdomain = parts[0]
-		}
-		// Si no, búscalo en la cabecera (para desarrollo local)
+
+		// Prioridad #1: La cabecera explícita que tú controlas.
+		subdomain = c.GetHeader("X-Client-Subdomain")
+
+		// Prioridad #2 (Fallback): Si la cabecera no existe, intenta con el Host.
 		if subdomain == "" {
-			subdomain = c.GetHeader("X-Client-Subdomain")
+			host := c.Request.Host
+			parts := strings.Split(host, ".")
+			// Funciona para sub.dominio.com y sub.localhost
+			if len(parts) >= 2 {
+				subdomain = parts[0]
+			}
 		}
-		// Si después de ambos intentos sigue sin encontrarse, ahora sí es un error.
+
+		// Si después de ambos intentos sigue vacío, es un error.
 		if subdomain == "" {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Subdomain not found in Host or X-Client-Subdomain header"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Subdomain not found in X-Client-Subdomain header or Host"})
 			return
 		}
 
