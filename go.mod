@@ -3,9 +3,11 @@ module github.com/andrescris/apiKeyService
 go 1.24.3
 
 require (
+	cloud.google.com/go/firestore v1.18.0
 	github.com/andrescris/firestore v0.0.0-20250608214959-a5fdf15ce259
 	github.com/gin-gonic/gin v1.10.1
 	github.com/google/uuid v1.6.0
+	golang.org/x/crypto v0.38.0
 )
 
 require (
@@ -14,7 +16,6 @@ require (
 	cloud.google.com/go/auth v0.16.1 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.7.0 // indirect
-	cloud.google.com/go/firestore v1.18.0 // indirect
 	cloud.google.com/go/iam v1.5.2 // indirect
 	cloud.google.com/go/longrunning v0.6.7 // indirect
 	cloud.google.com/go/monitoring v1.24.2 // indirect
@@ -70,7 +71,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.35.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
 	golang.org/x/sync v0.14.0 // indirect

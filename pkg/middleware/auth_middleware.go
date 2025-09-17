@@ -6,19 +6,24 @@ import (
 	"strings"
 	"time"
 
-	gfs "cloud.google.com/go/firestore" // Alias para el cliente oficial
+	gfs "cloud.google.com/go/firestore"
 	"github.com/andrescris/apiKeyService/pkg/common"
 	"github.com/andrescris/firestore/lib/firebase"
+	"github.com/andrescris/firestore/lib/firebase/auth" // <-- NECESARIO PARA OBTENER EL USUARIO
 	"github.com/andrescris/firestore/lib/firebase/firestore"
 	"github.com/gin-gonic/gin"
 )
 
 func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 1. API Key & Secret
 		apiKey := c.GetHeader("X-API-Key")
-		apiSecret := c.GetHeader("X-API-Secret") // Esto tiene el prefijo "as_"
+		apiSecret := c.GetHeader("X-API-Secret")
+		if apiKey == "" || apiSecret == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "X-API-Key and X-API-Secret headers are required"})
+			return
+		}
 
-		// ... (código para buscar la clave no cambia) ...
 		opts := firebase.QueryOptions{
 			Filters: []firebase.QueryFilter{{Field: "api_key", Operator: "==", Value: apiKey}},
 			Limit:   1,
@@ -29,20 +34,14 @@ func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 			return
 		}
 		keyDoc := keys[0]
-
-		// --- CORRECCIÓN FINAL AQUÍ ---
-		// 1. Quitamos el prefijo "as_" del secreto que nos envió el usuario.
 		secretWithoutPrefix := strings.TrimPrefix(apiSecret, "as_")
-
-		// 2. Validamos el secreto y el estado
 		hashedSecret := keyDoc.Data["hashedSecret"].(string)
-		// 3. Usamos el secreto SIN prefijo para la comparación.
 		if !common.CheckSecretHash(secretWithoutPrefix, hashedSecret) || keyDoc.Data["status"] != "active" {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid credentials or inactive key"})
 			return
 		}
 
-		// ... (el resto del middleware no cambia)
+		// 2. Permisos
 		permissions, _ := keyDoc.Data["permissions"].([]interface{})
 		hasPermission := false
 		for _, p := range permissions {
@@ -51,11 +50,85 @@ func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 				break
 			}
 		}
+
+		// Primero, verificamos si la clave tiene el "super permiso".
+		for _, p := range permissions {
+			if p.(string) == "super:admin" {
+				hasPermission = true
+				break
+			}
+		}
+
+		// Si no tiene el super permiso, verificamos el permiso específico requerido por la ruta.
+		if !hasPermission {
+			for _, p := range permissions {
+				if p.(string) == requiredPermission {
+					hasPermission = true
+					break
+				}
+			}
+		}
+
 		if !hasPermission {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Insufficient permissions"})
 			return
 		}
 
+		// 3. Extraer subdomain del hostname
+		var subdomain string
+		host := c.Request.Host
+		parts := strings.Split(host, ".")
+		// Intenta obtenerlo del Host primero (para producción)
+		if len(parts) >= 3 {
+			subdomain = parts[0]
+		}
+		// Si no, búscalo en la cabecera (para desarrollo local)
+		if subdomain == "" {
+			subdomain = c.GetHeader("X-Client-Subdomain")
+		}
+		// Si después de ambos intentos sigue sin encontrarse, ahora sí es un error.
+		if subdomain == "" {
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "Subdomain not found in Host or X-Client-Subdomain header"})
+			return
+		}
+
+		// 4. Validar que el subdomain esté en los claims del usuario
+		userID, ok := keyDoc.Data["user_id"].(string)
+		if !ok || userID == "" {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "API Key not associated with a user"})
+			return
+		}
+
+		userRecord, err := auth.GetUser(context.Background(), userID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Could not retrieve user data"})
+			return
+		}
+
+		allowed := false
+		if claims := userRecord.CustomClaims; claims != nil {
+			if subs, exists := claims["subdomain"]; exists {
+				if subList, ok := subs.([]interface{}); ok {
+					for _, s := range subList {
+						if strings.EqualFold(s.(string), subdomain) {
+							allowed = true
+							break
+						}
+					}
+				}
+			}
+		}
+		if !allowed {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Subdomain not allowed"})
+			return
+		}
+
+		// 5. Guardar en context
+		c.Set("subdomain", subdomain)
+		c.Set("userId", userID)
+		c.Set("permissions", permissions)
+
+		// 6. Actualizar uso de la clave (igual que antes)
 		go func() {
 			updateData := []gfs.Update{
 				{Path: "usage.totalRequests", Value: gfs.Increment(1)},
@@ -64,8 +137,6 @@ func AuthMiddleware(requiredPermission string) gin.HandlerFunc {
 			firestore.UpdateDocumentFields(context.Background(), "api_keys_v2", keyDoc.ID, updateData)
 		}()
 
-		c.Set("userId", keyDoc.Data["user_id"])
-		c.Set("permissions", permissions)
 		c.Next()
 	}
 }
